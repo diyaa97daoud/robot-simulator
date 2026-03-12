@@ -11,6 +11,7 @@ import org.ini4j.Profile.Section;
 
 public class WarehouseConfig {
     private final SimulationMode mode;
+    private final CommunicationMode communicationMode;
     private final int rows;
     private final int columns;
     private final int steps;
@@ -35,6 +36,7 @@ public class WarehouseConfig {
 
     public WarehouseConfig(
         SimulationMode mode,
+        CommunicationMode communicationMode,
         int rows,
         int columns,
         int steps,
@@ -58,6 +60,7 @@ public class WarehouseConfig {
         String metricsOutputFile
     ) {
         this.mode = mode;
+        this.communicationMode = communicationMode;
         this.rows = rows;
         this.columns = columns;
         this.steps = steps;
@@ -94,6 +97,8 @@ public class WarehouseConfig {
         Section ui = ini.get("ui");
 
         SimulationMode mode = SimulationMode.fromString(readString(simulation, "mode", "optimized"));
+        Section communication = ini.get("communication");
+        CommunicationMode communicationMode = CommunicationMode.fromString(readString(communication, "mode", "broadcast"));
         int rows = readInt(warehouse, "rows", 30);
         int columns = readInt(warehouse, "columns", 45);
         int steps = readInt(simulation, "steps", 1500);
@@ -128,7 +133,7 @@ public class WarehouseConfig {
         validate(rows, columns, entryZones, exitZones, intermediate, recharge);
 
         return new WarehouseConfig(
-            mode, rows, columns, steps, seed, amrCount,
+            mode, communicationMode, rows, columns, steps, seed, amrCount,
             maxBattery, criticalThreshold, warningThreshold, safeMargin, rechargeDuration, rechargeCapacity,
             dist, rate, uiStepDelay, entryZones, exitZones, intermediate, recharge, staticObstacles, humans, metricsOutput
         );
@@ -245,6 +250,10 @@ public class WarehouseConfig {
         return mode;
     }
 
+    public CommunicationMode getCommunicationMode() {
+        return communicationMode;
+    }
+
     public int getRows() {
         return rows;
     }
@@ -332,6 +341,7 @@ public class WarehouseConfig {
     public WarehouseConfig copyWith(SimulationMode newMode, Integer newSeed, Integer newAmrCount, Double newPalletRate, String newMetricsFile) {
         return new WarehouseConfig(
             newMode == null ? mode : newMode,
+            communicationMode,
             rows,
             columns,
             steps,

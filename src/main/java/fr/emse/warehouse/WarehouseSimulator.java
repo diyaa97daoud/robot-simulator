@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -23,6 +24,8 @@ public class WarehouseSimulator {
     private final Set<Position> fixedBlocked;
     private final SimulationMetrics metrics;
     private final List<RobotMessage> messageBus;
+    private final Map<Integer, Integer> referenceDeliveryStepByPallet;
+    private final Map<Integer, Integer> referenceDistanceByPallet;
     private int nextPalletId;
 
     public WarehouseSimulator(WarehouseConfig config) {
@@ -35,6 +38,8 @@ public class WarehouseSimulator {
         this.fixedBlocked = new HashSet<Position>(config.getStaticObstacles());
         this.metrics = new SimulationMetrics();
         this.messageBus = new ArrayList<RobotMessage>();
+        this.referenceDeliveryStepByPallet = new HashMap<Integer, Integer>();
+        this.referenceDistanceByPallet = new HashMap<Integer, Integer>();
         this.nextPalletId = 1;
 
         registerZones();
@@ -211,8 +216,10 @@ public class WarehouseSimulator {
     }
 
     private void runReferenceStep(int step, Set<Position> blocked) {
-        List<Pallet> readyPallets = listReadyPallets();
-        for (Pallet pallet : readyPallets) {
+        for (Pallet pallet : listReadyPallets()) {
+            if (referenceDeliveryStepByPallet.containsKey(pallet.getId())) {
+                continue;
+            }
             Zone exitZone = zonesById.get(pallet.getDestinationExitZoneId());
             if (exitZone == null) {
                 continue;
@@ -221,11 +228,31 @@ public class WarehouseSimulator {
             if (dist >= Integer.MAX_VALUE / 8) {
                 continue;
             }
-            metrics.addDistance(dist);
-            metrics.addDeliveryTime(Math.max(0, step - pallet.getArrivalStep() + dist));
+            pallet.setAssignedRobotId(pallet.getId());
+            pallet.setStatus(PalletStatus.CARRIED_BY_ROBOT);
+            referenceDeliveryStepByPallet.put(pallet.getId(), step + dist);
+            referenceDistanceByPallet.put(pallet.getId(), dist);
+        }
+
+        List<Integer> deliveredNow = new ArrayList<Integer>();
+        for (Map.Entry<Integer, Integer> entry : referenceDeliveryStepByPallet.entrySet()) {
+            if (entry.getValue() <= step) {
+                deliveredNow.add(entry.getKey());
+            }
+        }
+        for (Integer palletId : deliveredNow) {
+            Pallet pallet = pallets.get(palletId);
+            if (pallet == null || pallet.getStatus() == PalletStatus.DELIVERED) {
+                continue;
+            }
+            Integer traveled = referenceDistanceByPallet.getOrDefault(palletId, 0);
+            metrics.addDistance(traveled);
+            metrics.addDeliveryTime(Math.max(0, step - pallet.getArrivalStep()));
             metrics.incrementDeliveredPallets();
             pallet.setStatus(PalletStatus.DELIVERED);
             pallet.setAssignedRobotId(null);
+            referenceDeliveryStepByPallet.remove(palletId);
+            referenceDistanceByPallet.remove(palletId);
         }
     }
 
@@ -235,7 +262,7 @@ public class WarehouseSimulator {
 
         Map<Integer, Position> proposedMoves = new HashMap<Integer, Position>();
         for (RobotAgent robot : robots) {
-            Position next = decideNextPosition(robot, blocked, step);
+            Position next = decideNextPosition(robot, blocked);
             proposedMoves.put(robot.getId(), next);
         }
 
@@ -295,7 +322,19 @@ public class WarehouseSimulator {
             return;
         }
 
+        if (config.getCommunicationMode() == CommunicationMode.DYADIC) {
+            createDyadicClaims(waitingPallets, blocked);
+            return;
+        }
+
+        createBroadcastClaims(waitingPallets, blocked);
+    }
+
+    private void createBroadcastClaims(List<Pallet> waitingPallets, Set<Position> blocked) {
+        List<RobotMessage> bidMessages = new ArrayList<RobotMessage>();
+        Map<Integer, Integer> taskLoads = new HashMap<Integer, Integer>();
         for (RobotAgent robot : robots) {
+            taskLoads.put(robot.getId(), robotTaskLoad(robot.getId()));
             if (!robot.isIdleLike()) {
                 continue;
             }
@@ -306,51 +345,152 @@ public class WarehouseSimulator {
 
             Bid best = computeBestBid(robot, waitingPallets, blocked);
             if (best != null) {
-                messageBus.add(new RobotMessage(
+                bidMessages.add(new RobotMessage(
                     MessageType.BID, robot.getId(), null, best.pallet.getId(), best.score, best.targetZoneId
                 ));
             }
         }
-        metrics.addMessagesSent(messageBus.size());
+        messageBus.addAll(bidMessages);
+        metrics.addMessagesSent(bidMessages.size());
 
         Map<Integer, List<RobotMessage>> bidsByPallet = new HashMap<Integer, List<RobotMessage>>();
-        for (RobotMessage message : messageBus) {
+        for (RobotMessage message : bidMessages) {
             if (message.getPalletId() == null) {
                 continue;
             }
             bidsByPallet.computeIfAbsent(message.getPalletId(), k -> new ArrayList<RobotMessage>()).add(message);
         }
 
-        for (Map.Entry<Integer, List<RobotMessage>> entry : bidsByPallet.entrySet()) {
-            Integer palletId = entry.getKey();
-            Pallet pallet = pallets.get(palletId);
-            if (pallet == null || pallet.getAssignedRobotId() != null || pallet.getStatus() != PalletStatus.WAITING_AT_ENTRY) {
+        List<RobotMessage> claimCandidates = new ArrayList<RobotMessage>();
+        for (RobotMessage ownBid : bidMessages) {
+            Integer palletId = ownBid.getPalletId();
+            if (palletId == null) {
                 continue;
             }
-            List<RobotMessage> bids = entry.getValue();
-            bids.sort(Comparator
-                .comparingDouble(RobotMessage::getScore)
-                .thenComparingInt(msg -> robotTaskLoad(msg.getSenderRobotId()))
-                .thenComparingInt(RobotMessage::getSenderRobotId));
-
-            RobotMessage winner = bids.get(0);
-            RobotAgent robot = robotById(winner.getSenderRobotId());
-            if (robot == null) {
+            List<RobotMessage> samePalletBids = bidsByPallet.getOrDefault(palletId, Collections.emptyList());
+            if (!isWinningBid(ownBid, samePalletBids, taskLoads)) {
                 continue;
             }
-            pallet.setAssignedRobotId(robot.getId());
-            robot.setTargetPalletId(palletId);
-            robot.setTargetZoneId(winner.getPayload());
-            robot.setState(RobotState.MOVING_TO_PICKUP);
-
-            messageBus.add(new RobotMessage(
-                MessageType.CLAIM, robot.getId(), null, palletId, winner.getScore(), winner.getPayload()
+            claimCandidates.add(new RobotMessage(
+                MessageType.CLAIM,
+                ownBid.getSenderRobotId(),
+                null,
+                ownBid.getPalletId(),
+                ownBid.getScore(),
+                ownBid.getPayload()
             ));
-            metrics.addMessagesSent(1);
+        }
+
+        claimCandidates.sort(Comparator
+            .comparingDouble(RobotMessage::getScore)
+            .thenComparingInt(msg -> taskLoads.getOrDefault(msg.getSenderRobotId(), Integer.MAX_VALUE / 4))
+            .thenComparingInt(RobotMessage::getSenderRobotId));
+
+        Set<Integer> alreadyClaimedPallets = new HashSet<Integer>();
+        for (RobotMessage claim : claimCandidates) {
+            Integer palletId = claim.getPalletId();
+            if (palletId == null || alreadyClaimedPallets.contains(palletId)) {
+                continue;
+            }
+            Pallet pallet = pallets.get(palletId);
+            RobotAgent robot = robotById(claim.getSenderRobotId());
+            if (robot == null || pallet == null) {
+                continue;
+            }
+            if (!robot.isIdleLike()) {
+                continue;
+            }
+            if (pallet.getAssignedRobotId() != null || pallet.getStatus() != PalletStatus.WAITING_AT_ENTRY) {
+                continue;
+            }
+            assignRobotToPallet(robot, pallet, claim.getPayload(), claim.getScore(), claim.getReceiverRobotId());
+            alreadyClaimedPallets.add(palletId);
         }
     }
 
-    private Position decideNextPosition(RobotAgent robot, Set<Position> blocked, int step) {
+    private boolean isWinningBid(RobotMessage candidate, List<RobotMessage> samePalletBids, Map<Integer, Integer> taskLoads) {
+        for (RobotMessage other : samePalletBids) {
+            if (other == candidate) {
+                continue;
+            }
+            int cmpScore = Double.compare(other.getScore(), candidate.getScore());
+            if (cmpScore < 0) {
+                return false;
+            }
+            if (cmpScore == 0) {
+                int candidateLoad = taskLoads.getOrDefault(candidate.getSenderRobotId(), Integer.MAX_VALUE / 4);
+                int otherLoad = taskLoads.getOrDefault(other.getSenderRobotId(), Integer.MAX_VALUE / 4);
+                if (otherLoad < candidateLoad) {
+                    return false;
+                }
+                if (otherLoad == candidateLoad && other.getSenderRobotId() < candidate.getSenderRobotId()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private void createDyadicClaims(List<Pallet> waitingPallets, Set<Position> blocked) {
+        List<RobotAgent> idleCandidates = new ArrayList<RobotAgent>();
+        for (RobotAgent robot : robots) {
+            if (!robot.isIdleLike()) {
+                continue;
+            }
+            if (robot.getBattery() <= config.getCriticalThreshold()) {
+                robot.setState(RobotState.MOVING_TO_RECHARGE);
+                continue;
+            }
+            idleCandidates.add(robot);
+        }
+        if (idleCandidates.isEmpty()) {
+            return;
+        }
+
+        Collections.shuffle(idleCandidates);
+        for (RobotAgent robot : idleCandidates) {
+            Bid best = computeBestBid(robot, waitingPallets, blocked);
+            if (best == null || best.pallet.getAssignedRobotId() != null) {
+                continue;
+            }
+            RobotAgent receiver = nearestIdlePeer(robot, idleCandidates);
+            Integer receiverId = receiver == null ? null : receiver.getId();
+            assignRobotToPallet(robot, best.pallet, best.targetZoneId, best.score, receiverId);
+        }
+    }
+
+    private RobotAgent nearestIdlePeer(RobotAgent sender, List<RobotAgent> candidates) {
+        RobotAgent nearest = null;
+        int bestDist = Integer.MAX_VALUE;
+        for (RobotAgent candidate : candidates) {
+            if (candidate.getId() == sender.getId()) {
+                continue;
+            }
+            if (!candidate.isIdleLike()) {
+                continue;
+            }
+            int dist = sender.getPosition().manhattanDistance(candidate.getPosition());
+            if (dist < bestDist) {
+                bestDist = dist;
+                nearest = candidate;
+            }
+        }
+        return nearest;
+    }
+
+    private void assignRobotToPallet(RobotAgent robot, Pallet pallet, String targetZoneId, double score, Integer receiverRobotId) {
+        pallet.setAssignedRobotId(robot.getId());
+        robot.setTargetPalletId(pallet.getId());
+        robot.setTargetZoneId(targetZoneId);
+        robot.setState(RobotState.MOVING_TO_PICKUP);
+
+        messageBus.add(new RobotMessage(
+            MessageType.CLAIM, robot.getId(), receiverRobotId, pallet.getId(), score, targetZoneId
+        ));
+        metrics.addMessagesSent(1);
+    }
+
+    private Position decideNextPosition(RobotAgent robot, Set<Position> blocked) {
         if (robot.getState() == RobotState.RECHARGING) {
             return robot.getPosition();
         }
@@ -719,6 +859,10 @@ public class WarehouseSimulator {
 
     private void writeMetrics(SimulationResult result, String filePath) throws IOException {
         Path output = Path.of(filePath);
+        Path parent = output.getParent();
+        if (parent != null && !Files.exists(parent)) {
+            Files.createDirectories(parent);
+        }
         boolean exists = Files.exists(output);
         if (!exists) {
             Files.writeString(output, result.toCsvHeader() + System.lineSeparator(), StandardOpenOption.CREATE);

@@ -26,4 +26,12 @@ public class ExperimentRunner {
         System.out.println("Messages sent: " + m.getMessagesSent());
         System.out.println("Avg intermediate occupancy: " + String.format("%.3f", m.getAverageIntermediateOccupancy()));
     }
+
+    public static void printMinimumFleetResult(MinimumAmrSearchResult result) {
+        System.out.println("Minimum AMR search range: [" + result.getMinFleet() + ", " + result.getMaxFleet() + "]");
+        System.out.println("Target average delivery time: " + String.format("%.3f", result.getTargetAverageDeliveryTime()));
+        System.out.println("Selected fleet size: " + result.getSelectedFleet());
+        System.out.println("Selected average delivery time: " + String.format("%.3f", result.getSelectedAverageDeliveryTime()));
+        System.out.println("Target reached: " + result.isTargetReached());
+    }
 }
