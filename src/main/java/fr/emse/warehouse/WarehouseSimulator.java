@@ -279,6 +279,7 @@ public class WarehouseSimulator {
                 robot.incrementWaitingSteps();
                 metrics.addRobotWaitStep();
             }
+            syncCarriedPalletPosition(robot);
             applyStateTransitions(robot, step);
         }
     }
@@ -296,10 +297,10 @@ public class WarehouseSimulator {
                 Integer start = robot.getRechargeStartStep();
                 if (start != null && step - start >= config.getRechargeDuration()) {
                     robot.setBattery(robot.getMaxBattery());
-                    robot.setState(RobotState.IDLE);
+                    restorePostRechargeState(robot);
                     robot.setRechargeStartStep(null);
                 }
-            } else if (robot.getState() == RobotState.MOVING_TO_RECHARGE
+            } else if ((robot.getState() == RobotState.MOVING_TO_RECHARGE || robot.getState() == RobotState.WAITING)
                 && robot.getPosition().equals(config.getRechargeZone().getPosition())) {
                 if (activeCharging < config.getRechargeCapacity()) {
                     robot.setState(RobotState.RECHARGING);
@@ -501,11 +502,11 @@ public class WarehouseSimulator {
         Position target = null;
         switch (robot.getState()) {
             case MOVING_TO_PICKUP:
+            case MOVING_TO_INTERMEDIATE_PICKUP:
                 target = targetPickupPosition(robot);
                 break;
             case CARRYING_TO_EXIT:
             case CARRYING_TO_INTERMEDIATE:
-            case MOVING_TO_INTERMEDIATE_PICKUP:
                 target = targetZonePosition(robot.getTargetZoneId());
                 break;
             case MOVING_TO_RECHARGE:
@@ -609,6 +610,14 @@ public class WarehouseSimulator {
         }
 
         if (robot.getState() == RobotState.IDLE || robot.getState() == RobotState.WAITING) {
+            if (robot.getCarryingPalletId() != null) {
+                if (robot.getTargetZoneId() != null && robot.getTargetZoneId().startsWith("I")) {
+                    robot.setState(RobotState.CARRYING_TO_INTERMEDIATE);
+                } else {
+                    robot.setState(RobotState.CARRYING_TO_EXIT);
+                }
+                return;
+            }
             if (robot.getBattery() <= config.getWarningThreshold()) {
                 robot.setState(RobotState.MOVING_TO_RECHARGE);
             } else {
@@ -855,6 +864,38 @@ public class WarehouseSimulator {
         robot.setTargetPalletId(null);
         robot.setTargetZoneId(null);
         robot.setState(RobotState.IDLE);
+    }
+
+    private void syncCarriedPalletPosition(RobotAgent robot) {
+        if (robot.getCarryingPalletId() == null) {
+            return;
+        }
+        Pallet carrying = palletById(robot.getCarryingPalletId());
+        if (carrying == null || carrying.getStatus() != PalletStatus.CARRIED_BY_ROBOT) {
+            return;
+        }
+        carrying.setPosition(robot.getPosition());
+        carrying.setAssignedRobotId(robot.getId());
+    }
+
+    private void restorePostRechargeState(RobotAgent robot) {
+        if (robot.getCarryingPalletId() == null) {
+            robot.setState(RobotState.IDLE);
+            return;
+        }
+        Pallet carrying = palletById(robot.getCarryingPalletId());
+        if (carrying == null) {
+            resetRobotTask(robot);
+            return;
+        }
+        if (robot.getTargetZoneId() == null) {
+            robot.setTargetZoneId(carrying.getDestinationExitZoneId());
+        }
+        if (robot.getTargetZoneId() != null && robot.getTargetZoneId().startsWith("I")) {
+            robot.setState(RobotState.CARRYING_TO_INTERMEDIATE);
+        } else {
+            robot.setState(RobotState.CARRYING_TO_EXIT);
+        }
     }
 
     private void writeMetrics(SimulationResult result, String filePath) throws IOException {

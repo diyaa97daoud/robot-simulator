@@ -15,6 +15,7 @@ The project currently includes:
   - fixed AMR fleet
   - decentralized bid/claim task allocation
   - battery tracking and recharge area constraints
+  - recharge while carrying pallet support
   - intermediate storage areas
   - local movement conflict resolution
   - metrics export
@@ -90,6 +91,7 @@ Important sections:
 - `[simulation]`: mode, steps, seed, AMR count
 - `[warehouse]`: grid size
 - `[arrivals]`: pallet distribution and rate
+- `[communication]`: communication mode (`broadcast` or `dyadic`)
 - `[battery]`: battery, thresholds, safe margin, recharge duration/capacity
 - `[zones]`: entry, exit, intermediate, recharge zones
 - `[obstacles]`: fixed obstacles and humans
@@ -118,7 +120,7 @@ These are known issues in the current implementation and are intentionally left 
 - battery feasibility is not yet enforced as a hard constraint before pickup
 - robots can still accept tasks that later become unsafe
 - intermediate retrieval needs refinement in some scenarios
-- dynamic battery threshold logic for safe fallback to intermediate/recharge is not yet implemented
+- dynamic battery threshold logic for best fallback routing is still heuristic-based
 
 ## Tests
 
