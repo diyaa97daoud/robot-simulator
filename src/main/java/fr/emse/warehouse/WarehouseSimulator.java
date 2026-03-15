@@ -58,7 +58,7 @@ public class WarehouseSimulator {
         for (Zone z : config.getIntermediateZones()) {
             zonesById.put(z.getId(), z);
         }
-        // CHANGED: Register all recharge zones
+        // Register all recharge zones
         for (Zone z : config.getRechargeZones()) {
             zonesById.put(z.getId(), z);
         }
@@ -159,7 +159,7 @@ public class WarehouseSimulator {
             ));
         }
         
-        // CHANGED: Create views for all recharge zones
+        // Create views for all recharge zones
         List<SimulationSnapshot.ZoneView> rechargeViews = new ArrayList<SimulationSnapshot.ZoneView>();
         for (Zone recharge : config.getRechargeZones()) {
             int robotsAtThisZone = countRechargingRobotsAt(recharge.getPosition());
@@ -204,7 +204,7 @@ public class WarehouseSimulator {
             entries,
             exits,
             intermediates,
-            rechargeViews,  // CHANGED: Pass list instead of single view
+            rechargeViews,  
             new ArrayList<Position>(fixedBlocked),
             new ArrayList<Position>(humans),
             robotViews,
@@ -223,7 +223,7 @@ public class WarehouseSimulator {
         return charging;
     }
 
-    // NEW: Count robots recharging at a specific position
+    // Count robots recharging at a specific position
     private int countRechargingRobotsAt(Position position) {
         int count = 0;
         for (RobotAgent robot : robots) {
@@ -235,7 +235,7 @@ public class WarehouseSimulator {
         return count;
     }
 
-    // NEW: Find nearest recharge zone to a given position
+    // Find nearest recharge zone to a given position
     private Zone findNearestRechargeZone(Position from, Set<Position> blocked) {
         Zone nearest = null;
         int minDistance = Integer.MAX_VALUE;
@@ -298,7 +298,7 @@ public class WarehouseSimulator {
     }
 
     private void runOptimizedStep(int step, Set<Position> blocked) {
-        processRecharging(step, blocked);  // CHANGED: Pass blocked set
+        processRecharging(step, blocked);  
         createBidsAndClaims(blocked);
 
         Map<Integer, Position> proposedMoves = new HashMap<Integer, Position>();
@@ -324,14 +324,8 @@ public class WarehouseSimulator {
         }
     }
 
-    private void processRecharging(int step, Set<Position> blocked) {  // CHANGED: Added blocked parameter
-        int activeCharging = 0;
-        for (RobotAgent robot : robots) {
-            if (robot.getState() == RobotState.RECHARGING) {
-                activeCharging++;
-            }
-        }
-
+    private void processRecharging(int step, Set<Position> blocked) {
+        // First pass: Complete recharging for robots that are done
         for (RobotAgent robot : robots) {
             if (robot.getState() == RobotState.RECHARGING) {
                 Integer start = robot.getRechargeStartStep();
@@ -340,21 +334,35 @@ public class WarehouseSimulator {
                     robot.setState(RobotState.IDLE);
                     robot.setRechargeStartStep(null);
                 }
-            } else if (robot.getState() == RobotState.MOVING_TO_RECHARGE) {
-                // CHANGED: Check if robot is at ANY recharge zone
-                boolean atRechargeZone = false;
+            }
+        }
+
+        // Second pass: Handle robots arriving at recharge zones
+        for (RobotAgent robot : robots) {
+            if (robot.getState() == RobotState.MOVING_TO_RECHARGE) {
+                // Find which recharge zone (if any) the robot is at
+                Zone currentRechargeZone = null;
                 for (Zone rechargeZone : config.getRechargeZones()) {
                     if (robot.getPosition().equals(rechargeZone.getPosition())) {
-                        atRechargeZone = true;
+                        currentRechargeZone = rechargeZone;
                         break;
                     }
                 }
                 
-                if (atRechargeZone) {
-                    if (activeCharging < config.getRechargeCapacity()) {
+                if (currentRechargeZone != null) {
+                    // Count robots currently charging at THIS specific zone
+                    int chargingAtThisZone = 0;
+                    for (RobotAgent other : robots) {
+                        if (other.getState() == RobotState.RECHARGING && 
+                            other.getPosition().equals(currentRechargeZone.getPosition())) {
+                            chargingAtThisZone++;
+                        }
+                    }
+                    
+                    // Check capacity for THIS zone specifically
+                    if (chargingAtThisZone < currentRechargeZone.getCapacity()) {
                         robot.setState(RobotState.RECHARGING);
                         robot.setRechargeStartStep(step);
-                        activeCharging++;
                         metrics.incrementRechargeCount();
                     } else {
                         robot.setState(RobotState.WAITING);
