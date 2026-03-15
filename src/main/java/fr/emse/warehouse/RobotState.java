@@ -1,0 +1,12 @@
+package fr.emse.warehouse;
+
+public enum RobotState {
+    IDLE,
+    MOVING_TO_PICKUP,
+    CARRYING_TO_EXIT,
+    CARRYING_TO_INTERMEDIATE,
+    MOVING_TO_INTERMEDIATE_PICKUP,
+    MOVING_TO_RECHARGE,
+    RECHARGING,
+    WAITING
+}

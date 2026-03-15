@@ -1,2 +1,15 @@
 .gradle
 build
+
+# Runtime outputs
+simulation.log
+simulation-metrics.csv
+*.log
+
+# Local compiled artifacts
+*.class
+
+# IDE / local tooling
+.idea/
+.vscode/
+.DS_Store
