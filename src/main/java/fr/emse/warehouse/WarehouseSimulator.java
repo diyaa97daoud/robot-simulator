@@ -58,7 +58,10 @@ public class WarehouseSimulator {
         for (Zone z : config.getIntermediateZones()) {
             zonesById.put(z.getId(), z);
         }
-        zonesById.put(config.getRechargeZone().getId(), config.getRechargeZone());
+        // CHANGED: Register all recharge zones
+        for (Zone z : config.getRechargeZones()) {
+            zonesById.put(z.getId(), z);
+        }
     }
 
     private void initializeOptimizedFleet() {
@@ -155,14 +158,19 @@ public class WarehouseSimulator {
                 zone.getOccupancy()
             ));
         }
-        Zone recharge = config.getRechargeZone();
-        SimulationSnapshot.ZoneView rechargeView = new SimulationSnapshot.ZoneView(
-            recharge.getId(),
-            recharge.getType(),
-            recharge.getPosition(),
-            recharge.getCapacity(),
-            countRechargingRobots()
-        );
+        
+        // CHANGED: Create views for all recharge zones
+        List<SimulationSnapshot.ZoneView> rechargeViews = new ArrayList<SimulationSnapshot.ZoneView>();
+        for (Zone recharge : config.getRechargeZones()) {
+            int robotsAtThisZone = countRechargingRobotsAt(recharge.getPosition());
+            rechargeViews.add(new SimulationSnapshot.ZoneView(
+                recharge.getId(),
+                recharge.getType(),
+                recharge.getPosition(),
+                recharge.getCapacity(),
+                robotsAtThisZone
+            ));
+        }
 
         List<SimulationSnapshot.RobotView> robotViews = new ArrayList<SimulationSnapshot.RobotView>();
         for (RobotAgent robot : robots) {
@@ -196,7 +204,7 @@ public class WarehouseSimulator {
             entries,
             exits,
             intermediates,
-            rechargeView,
+            rechargeViews,  // CHANGED: Pass list instead of single view
             new ArrayList<Position>(fixedBlocked),
             new ArrayList<Position>(humans),
             robotViews,
@@ -213,6 +221,39 @@ public class WarehouseSimulator {
             }
         }
         return charging;
+    }
+
+    // NEW: Count robots recharging at a specific position
+    private int countRechargingRobotsAt(Position position) {
+        int count = 0;
+        for (RobotAgent robot : robots) {
+            if (robot.getState() == RobotState.RECHARGING && 
+                robot.getPosition().equals(position)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // NEW: Find nearest recharge zone to a given position
+    private Zone findNearestRechargeZone(Position from, Set<Position> blocked) {
+        Zone nearest = null;
+        int minDistance = Integer.MAX_VALUE;
+        
+        for (Zone rechargeZone : config.getRechargeZones()) {
+            int distance = pathfinder.shortestDistance(
+                from, 
+                rechargeZone.getPosition(), 
+                blocked
+            );
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearest = rechargeZone;
+            }
+        }
+        
+        return nearest;
     }
 
     private void runReferenceStep(int step, Set<Position> blocked) {
@@ -257,7 +298,7 @@ public class WarehouseSimulator {
     }
 
     private void runOptimizedStep(int step, Set<Position> blocked) {
-        processRecharging(step);
+        processRecharging(step, blocked);  // CHANGED: Pass blocked set
         createBidsAndClaims(blocked);
 
         Map<Integer, Position> proposedMoves = new HashMap<Integer, Position>();
@@ -283,7 +324,7 @@ public class WarehouseSimulator {
         }
     }
 
-    private void processRecharging(int step) {
+    private void processRecharging(int step, Set<Position> blocked) {  // CHANGED: Added blocked parameter
         int activeCharging = 0;
         for (RobotAgent robot : robots) {
             if (robot.getState() == RobotState.RECHARGING) {
@@ -299,16 +340,26 @@ public class WarehouseSimulator {
                     robot.setState(RobotState.IDLE);
                     robot.setRechargeStartStep(null);
                 }
-            } else if (robot.getState() == RobotState.MOVING_TO_RECHARGE
-                && robot.getPosition().equals(config.getRechargeZone().getPosition())) {
-                if (activeCharging < config.getRechargeCapacity()) {
-                    robot.setState(RobotState.RECHARGING);
-                    robot.setRechargeStartStep(step);
-                    activeCharging++;
-                    metrics.incrementRechargeCount();
-                } else {
-                    robot.setState(RobotState.WAITING);
-                    metrics.addRechargeWaitStep();
+            } else if (robot.getState() == RobotState.MOVING_TO_RECHARGE) {
+                // CHANGED: Check if robot is at ANY recharge zone
+                boolean atRechargeZone = false;
+                for (Zone rechargeZone : config.getRechargeZones()) {
+                    if (robot.getPosition().equals(rechargeZone.getPosition())) {
+                        atRechargeZone = true;
+                        break;
+                    }
+                }
+                
+                if (atRechargeZone) {
+                    if (activeCharging < config.getRechargeCapacity()) {
+                        robot.setState(RobotState.RECHARGING);
+                        robot.setRechargeStartStep(step);
+                        activeCharging++;
+                        metrics.incrementRechargeCount();
+                    } else {
+                        robot.setState(RobotState.WAITING);
+                        metrics.addRechargeWaitStep();
+                    }
                 }
             }
         }
@@ -510,7 +561,9 @@ public class WarehouseSimulator {
                 break;
             case MOVING_TO_RECHARGE:
             case WAITING:
-                target = config.getRechargeZone().getPosition();
+                // CHANGED: Find nearest recharge zone
+                Zone nearestRecharge = findNearestRechargeZone(robot.getPosition(), blocked);
+                target = nearestRecharge != null ? nearestRecharge.getPosition() : robot.getPosition();
                 break;
             default:
                 return robot.getPosition();

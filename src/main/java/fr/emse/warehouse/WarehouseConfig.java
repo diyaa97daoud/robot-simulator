@@ -29,7 +29,7 @@ public class WarehouseConfig {
     private final List<Zone> entryZones;
     private final List<Zone> exitZones;
     private final List<Zone> intermediateZones;
-    private final Zone rechargeZone;
+    private final List<Zone> rechargeZones;  // CHANGED: Now a list instead of single zone
     private final List<Position> staticObstacles;
     private final List<Position> humans;
     private final String metricsOutputFile;
@@ -54,7 +54,7 @@ public class WarehouseConfig {
         List<Zone> entryZones,
         List<Zone> exitZones,
         List<Zone> intermediateZones,
-        Zone rechargeZone,
+        List<Zone> rechargeZones,  // CHANGED: Now a list
         List<Position> staticObstacles,
         List<Position> humans,
         String metricsOutputFile
@@ -78,7 +78,7 @@ public class WarehouseConfig {
         this.entryZones = entryZones;
         this.exitZones = exitZones;
         this.intermediateZones = intermediateZones;
-        this.rechargeZone = rechargeZone;
+        this.rechargeZones = rechargeZones;  // CHANGED
         this.staticObstacles = staticObstacles;
         this.humans = humans;
         this.metricsOutputFile = metricsOutputFile;
@@ -124,18 +124,19 @@ public class WarehouseConfig {
             3
         );
 
-        Zone recharge = parseRechargeZone(readString(zones, "recharge", "R1:21,16:2"), rechargeCapacity);
+        // CHANGED: Parse multiple recharge zones
+        List<Zone> rechargeZones = parseRechargeZones(readString(zones, "recharge", "R1:21,16:2"), rechargeCapacity);
 
         List<Position> staticObstacles = parsePositions(readString(obstacles, "fixed", ""));
         List<Position> humans = parsePositions(readString(obstacles, "humans", ""));
         String metricsOutput = readString(output, "metricsFile", "simulation-metrics.csv");
 
-        validate(rows, columns, entryZones, exitZones, intermediate, recharge);
+        validate(rows, columns, entryZones, exitZones, intermediate, rechargeZones);
 
         return new WarehouseConfig(
             mode, communicationMode, rows, columns, steps, seed, amrCount,
             maxBattery, criticalThreshold, warningThreshold, safeMargin, rechargeDuration, rechargeCapacity,
-            dist, rate, uiStepDelay, entryZones, exitZones, intermediate, recharge, staticObstacles, humans, metricsOutput
+            dist, rate, uiStepDelay, entryZones, exitZones, intermediate, rechargeZones, staticObstacles, humans, metricsOutput
         );
     }
 
@@ -145,7 +146,7 @@ public class WarehouseConfig {
         List<Zone> entries,
         List<Zone> exits,
         List<Zone> inters,
-        Zone recharge
+        List<Zone> rechargeZones  // CHANGED: Now a list
     ) {
         if (rows <= 0 || columns <= 0) {
             throw new IllegalArgumentException("Warehouse rows/columns must be > 0");
@@ -153,13 +154,15 @@ public class WarehouseConfig {
         if (entries.isEmpty() || exits.isEmpty()) {
             throw new IllegalArgumentException("At least one entry and one exit zone are required");
         }
+        if (rechargeZones.isEmpty()) {  // CHANGED: Validate list not empty
+            throw new IllegalArgumentException("At least one recharge zone is required");
+        }
         List<Zone> all = new ArrayList<Zone>();
         all.addAll(entries);
         all.addAll(exits);
         all.addAll(inters);
-        if (recharge != null) {
-            all.add(recharge);
-        }
+        all.addAll(rechargeZones);  // CHANGED: Add all recharge zones
+        
         for (Zone z : all) {
             if (z.getPosition().x < 0 || z.getPosition().x >= columns || z.getPosition().y < 0 || z.getPosition().y >= rows) {
                 throw new IllegalArgumentException("Zone out of bounds: " + z.getId());
@@ -213,13 +216,39 @@ public class WarehouseConfig {
         return zones;
     }
 
-    private static Zone parseRechargeZone(String raw, int fallbackCapacity) {
-        List<Zone> zones = parseZones(raw, ZoneType.RECHARGE, fallbackCapacity);
-        if (zones.isEmpty()) {
-            return new Zone("R1", ZoneType.RECHARGE, new Position(0, 0), fallbackCapacity);
+    // CHANGED: New method to parse multiple recharge zones
+    private static List<Zone> parseRechargeZones(String raw, int fallbackCapacity) {
+        if (raw == null || raw.trim().isEmpty()) {
+            // Return default single recharge zone if none specified
+            return Collections.singletonList(new Zone("R1", ZoneType.RECHARGE, new Position(0, 0), fallbackCapacity));
         }
-        Zone parsed = zones.get(0);
-        return new Zone(parsed.getId(), ZoneType.RECHARGE, parsed.getPosition(), parsed.getCapacity());
+        
+        List<Zone> zones = new ArrayList<Zone>();
+        String[] tokens = raw.split("\\|");
+        
+        for (String token : tokens) {
+            if (token == null || token.trim().isEmpty()) {
+                continue;
+            }
+            String[] parts = token.trim().split(":");
+            if (parts.length < 2) {
+                continue;
+            }
+            String id = parts[0].trim();
+            Position pos = parsePosition(parts[1].trim());
+            int capacity = fallbackCapacity;
+            if (parts.length >= 3) {
+                capacity = Integer.parseInt(parts[2].trim());
+            }
+            zones.add(new Zone(id, ZoneType.RECHARGE, pos, capacity));
+        }
+        
+        // If parsing failed, return default
+        if (zones.isEmpty()) {
+            return Collections.singletonList(new Zone("R1", ZoneType.RECHARGE, new Position(0, 0), fallbackCapacity));
+        }
+        
+        return zones;
     }
 
     private static List<Position> parsePositions(String raw) {
@@ -322,8 +351,18 @@ public class WarehouseConfig {
         return intermediateZones;
     }
 
+    // CHANGED: New getter for list of recharge zones
+    public List<Zone> getRechargeZones() {
+        return rechargeZones;
+    }
+
+    // DEPRECATED: Keep for backward compatibility, returns first recharge zone
+    @Deprecated
     public Zone getRechargeZone() {
-        return rechargeZone;
+        if (rechargeZones == null || rechargeZones.isEmpty()) {
+            return null;
+        }
+        return rechargeZones.get(0);
     }
 
     public List<Position> getStaticObstacles() {
@@ -359,7 +398,7 @@ public class WarehouseConfig {
             cloneZones(entryZones),
             cloneZones(exitZones),
             cloneZones(intermediateZones),
-            new Zone(rechargeZone.getId(), rechargeZone.getType(), rechargeZone.getPosition(), rechargeZone.getCapacity()),
+            cloneZones(rechargeZones),  // CHANGED: Clone list
             new ArrayList<Position>(staticObstacles),
             new ArrayList<Position>(humans),
             newMetricsFile == null ? metricsOutputFile : newMetricsFile

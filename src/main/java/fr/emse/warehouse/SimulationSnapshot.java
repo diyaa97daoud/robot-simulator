@@ -9,7 +9,7 @@ public class SimulationSnapshot {
     private final List<ZoneView> entries;
     private final List<ZoneView> exits;
     private final List<ZoneView> intermediates;
-    private final ZoneView recharge;
+    private final List<ZoneView> recharges;  // CHANGED: Now a list instead of single zone
     private final List<Position> fixedObstacles;
     private final List<Position> humans;
     private final List<RobotView> robots;
@@ -23,7 +23,7 @@ public class SimulationSnapshot {
         List<ZoneView> entries,
         List<ZoneView> exits,
         List<ZoneView> intermediates,
-        ZoneView recharge,
+        List<ZoneView> recharges,  // CHANGED: Now a list
         List<Position> fixedObstacles,
         List<Position> humans,
         List<RobotView> robots,
@@ -36,7 +36,7 @@ public class SimulationSnapshot {
         this.entries = entries;
         this.exits = exits;
         this.intermediates = intermediates;
-        this.recharge = recharge;
+        this.recharges = recharges;  // CHANGED
         this.fixedObstacles = fixedObstacles;
         this.humans = humans;
         this.robots = robots;
@@ -68,8 +68,18 @@ public class SimulationSnapshot {
         return intermediates;
     }
 
+    // CHANGED: New getter for list of recharge zones
+    public List<ZoneView> getRecharges() {
+        return recharges;
+    }
+
+    // DEPRECATED: Keep for backward compatibility, returns first recharge zone
+    @Deprecated
     public ZoneView getRecharge() {
-        return recharge;
+        if (recharges == null || recharges.isEmpty()) {
+            return null;
+        }
+        return recharges.get(0);
     }
 
     public List<Position> getFixedObstacles() {

@@ -98,7 +98,8 @@ public class WarehouseUiApp {
             drawZones(g2, current.getEntries(), originX, originY, cellSize, new Color(255, 245, 157));
             drawZones(g2, current.getExits(), originX, originY, cellSize, new Color(255, 205, 210));
             drawZones(g2, current.getIntermediates(), originX, originY, cellSize, new Color(179, 229, 252));
-            drawRecharge(g2, current.getRecharge(), originX, originY, cellSize);
+            // CHANGED: Draw all recharge zones instead of single one
+            drawRechargeZones(g2, current.getRecharges(), originX, originY, cellSize);
             drawObstacles(g2, current.getFixedObstacles(), originX, originY, cellSize);
             drawHumans(g2, current.getHumans(), originX, originY, cellSize);
             drawPallets(g2, current.getPallets(), originX, originY, cellSize);
@@ -136,17 +137,21 @@ public class WarehouseUiApp {
             }
         }
 
-        private void drawRecharge(Graphics2D g2, SimulationSnapshot.ZoneView recharge, int ox, int oy, int cell) {
-            int x = ox + recharge.getPosition().x * cell;
-            int y = oy + recharge.getPosition().y * cell;
-            g2.setColor(new Color(200, 230, 201));
-            g2.fillRect(x + 1, y + 1, cell - 1, cell - 1);
-            g2.setColor(new Color(46, 125, 50));
-            g2.setStroke(new BasicStroke(2f));
-            g2.drawRect(x, y, cell, cell);
-            g2.setStroke(new BasicStroke(1f));
-            g2.setColor(Color.BLACK);
-            g2.drawString(recharge.getId() + " " + recharge.getOccupancy() + "/" + recharge.getCapacity(), x + 2, y + 12);
+        // CHANGED: New method to draw multiple recharge zones
+        private void drawRechargeZones(Graphics2D g2, List<SimulationSnapshot.ZoneView> recharges, int ox, int oy, int cell) {
+            g2.setFont(new Font("SansSerif", Font.BOLD, 11));
+            for (SimulationSnapshot.ZoneView recharge : recharges) {
+                int x = ox + recharge.getPosition().x * cell;
+                int y = oy + recharge.getPosition().y * cell;
+                g2.setColor(new Color(200, 230, 201));
+                g2.fillRect(x + 1, y + 1, cell - 1, cell - 1);
+                g2.setColor(new Color(46, 125, 50));
+                g2.setStroke(new BasicStroke(2f));
+                g2.drawRect(x, y, cell, cell);
+                g2.setStroke(new BasicStroke(1f));
+                g2.setColor(Color.BLACK);
+                g2.drawString(recharge.getId() + " " + recharge.getOccupancy() + "/" + recharge.getCapacity(), x + 2, y + 12);
+            }
         }
 
         private void drawObstacles(Graphics2D g2, List<Position> obstacles, int ox, int oy, int cell) {
@@ -220,8 +225,17 @@ public class WarehouseUiApp {
             line += 18;
             g2.drawString("Pallets in system: " + snapshot.getPallets().size(), x, line);
             line += 18;
-            g2.drawString("Recharge occupancy: " + snapshot.getRecharge().getOccupancy() + "/" + snapshot.getRecharge().getCapacity(), x, line);
+            
+            // CHANGED: Calculate total recharge occupancy from all zones
+            int totalOccupancy = 0;
+            int totalCapacity = 0;
+            for (SimulationSnapshot.ZoneView recharge : snapshot.getRecharges()) {
+                totalOccupancy += recharge.getOccupancy();
+                totalCapacity += recharge.getCapacity();
+            }
+            g2.drawString("Recharge occupancy: " + totalOccupancy + "/" + totalCapacity, x, line);
             line += 28;
+            
             g2.drawString("Legend:", x, line);
             line += 18;
             g2.setColor(new Color(255, 245, 157));
