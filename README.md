@@ -16,20 +16,20 @@ The latest suite execution in this branch was interrupted before completion.
 
 ### Partial Results Collected So Far
 
-| Mode | Rate | Fleet | Runs | Delivered Avg | Avg Delivery Time | Recharge Avg |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| OPTIMIZED | 300 | 4 | 1 | 8.00 | 112.38 | 4.00 |
-| OPTIMIZED | 300 | 5 | 1 | 7.00 | 101.29 | 3.00 |
-| OPTIMIZED | 300 | 6 | 1 | 8.00 | 86.00 | 3.00 |
-| OPTIMIZED | 400 | 4 | 1 | 8.00 | 121.62 | 4.00 |
-| OPTIMIZED | 400 | 5 | 1 | 7.00 | 87.71 | 2.00 |
-| OPTIMIZED | 400 | 6 | 1 | 8.00 | 75.00 | 2.00 |
-| OPTIMIZED | 500 | 4 | 1 | 8.00 | 123.50 | 4.00 |
-| OPTIMIZED | 500 | 5 | 1 | 7.00 | 88.43 | 2.00 |
-| OPTIMIZED | 500 | 6 | 1 | 8.00 | 76.88 | 2.00 |
-| REFERENCE | 300 | 6 | 2 | 76.00 | 47.88 | 0.00 |
-| REFERENCE | 400 | 6 | 1 | 114.00 | 46.95 | 0.00 |
-| REFERENCE | 500 | 6 | 1 | 147.00 | 47.40 | 0.00 |
+| Mode      | Rate | Fleet | Runs | Delivered Avg | Avg Delivery Time | Recharge Avg |
+| --------- | ---: | ----: | ---: | ------------: | ----------------: | -----------: |
+| OPTIMIZED |  300 |     4 |    1 |          8.00 |            112.38 |         4.00 |
+| OPTIMIZED |  300 |     5 |    1 |          7.00 |            101.29 |         3.00 |
+| OPTIMIZED |  300 |     6 |    1 |          8.00 |             86.00 |         3.00 |
+| OPTIMIZED |  400 |     4 |    1 |          8.00 |            121.62 |         4.00 |
+| OPTIMIZED |  400 |     5 |    1 |          7.00 |             87.71 |         2.00 |
+| OPTIMIZED |  400 |     6 |    1 |          8.00 |             75.00 |         2.00 |
+| OPTIMIZED |  500 |     4 |    1 |          8.00 |            123.50 |         4.00 |
+| OPTIMIZED |  500 |     5 |    1 |          7.00 |             88.43 |         2.00 |
+| OPTIMIZED |  500 |     6 |    1 |          8.00 |             76.88 |         2.00 |
+| REFERENCE |  300 |     6 |    2 |         76.00 |             47.88 |         0.00 |
+| REFERENCE |  400 |     6 |    1 |        114.00 |             46.95 |         0.00 |
+| REFERENCE |  500 |     6 |    1 |        147.00 |             47.40 |         0.00 |
 
 ### Analysis
 
