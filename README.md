@@ -4,38 +4,39 @@ Java/Gradle warehouse simulator for the 2026 multi-agent programming project.
 
 ## Current Branch Performance Snapshot
 
-The latest suite execution in this branch was interrupted before completion.
+This branch evaluates a direct-only, battery-safe policy intended to reduce decision overhead and shorten delivery paths.
 
-### Completed Coverage
+### Suite Setup
 
 - Expected files: 120
-- Generated files: 13
-- Completion: 10.83%
-- Seeds covered so far: 150, 151
-- Rates covered so far: 300, 400, 500
+- Generated files: 120
+- Completion: 100%
+- Seeds covered: 150 to 159
+- Rates covered: 300, 400, 500
 
-### Partial Results Collected So Far
+### Reference vs Best Optimized (Mean Over Seeds)
 
-| Mode      | Rate | Fleet | Runs | Delivered Avg | Avg Delivery Time | Recharge Avg |
-| --------- | ---: | ----: | ---: | ------------: | ----------------: | -----------: |
-| OPTIMIZED |  300 |     4 |    1 |          8.00 |            112.38 |         4.00 |
-| OPTIMIZED |  300 |     5 |    1 |          7.00 |            101.29 |         3.00 |
-| OPTIMIZED |  300 |     6 |    1 |          8.00 |             86.00 |         3.00 |
-| OPTIMIZED |  400 |     4 |    1 |          8.00 |            121.62 |         4.00 |
-| OPTIMIZED |  400 |     5 |    1 |          7.00 |             87.71 |         2.00 |
-| OPTIMIZED |  400 |     6 |    1 |          8.00 |             75.00 |         2.00 |
-| OPTIMIZED |  500 |     4 |    1 |          8.00 |            123.50 |         4.00 |
-| OPTIMIZED |  500 |     5 |    1 |          7.00 |             88.43 |         2.00 |
-| OPTIMIZED |  500 |     6 |    1 |          8.00 |             76.88 |         2.00 |
-| REFERENCE |  300 |     6 |    2 |         76.00 |             47.88 |         0.00 |
-| REFERENCE |  400 |     6 |    1 |        114.00 |             46.95 |         0.00 |
-| REFERENCE |  500 |     6 |    1 |        147.00 |             47.40 |         0.00 |
+| Arrival Rate | Reference Delivered | Best Optimized Delivered | Best Optimized Fleet | Reference Avg Delivery Time | Best Optimized Avg Delivery Time |
+| ------------ | ------------------: | -----------------------: | -------------------: | --------------------------: | -------------------------------: |
+| 300          |               74.00 |                     6.20 |                    6 |                       48.05 |                            59.77 |
+| 400          |              101.80 |                     6.20 |                    6 |                       47.58 |                            56.55 |
+| 500          |              132.00 |                     6.20 |                    6 |                       47.77 |                            60.14 |
+
+### Best Optimized Operational Metrics
+
+| Arrival Rate | Fleet | Recharge Avg | Blocked Conflicts Avg | Messages Avg | Intermediate Occupancy Avg |
+| ------------ | ----: | -----------: | --------------------: | -----------: | -------------------------: |
+| 300          |     6 |         0.70 |                917.30 |        27.00 |                      0.000 |
+| 400          |     6 |         0.30 |                957.20 |        26.10 |                      0.000 |
+| 500          |     6 |         0.60 |                938.40 |        26.50 |                      0.000 |
 
 ### Analysis
 
-- These numbers are provisional because only 13/120 files were generated.
-- Even in the partial sample, reference remains much higher in delivered count, with lower average delivery time.
-- Optimized runs show non-zero recharging in all collected cases, while reference stays at zero by design.
+- This policy did reduce recharge usage and kept average delivery time closer to the reference model than previous optimized variants.
+- However, throughput collapsed: delivered pallets stayed around 6.2 regardless of arrival rate.
+- The main failure mode is congestion. Blocked movement conflicts are extremely high, which means robots spend much of the run blocking one another rather than completing deliveries.
+- Intermediate occupancy stayed at zero, confirming that this branch behaves as a direct-only policy.
+- For report comparison, this branch is a useful negative result: removing intermediate handling and aggressively simplifying dispatch reduced recharge overhead but significantly worsened throughput.
 
 ## What Is Implemented
 
@@ -51,7 +52,7 @@ The project currently includes:
   - decentralized bid/claim task allocation
   - battery tracking and recharge area constraints
   - recharge while carrying pallet support
-  - intermediate storage areas
+  - direct-only battery-safe task acceptance in this branch
   - local movement conflict resolution
   - metrics export
 - Live warehouse UI showing:
@@ -72,7 +73,7 @@ At each simulation step the optimized simulator does:
 3. Let idle AMRs evaluate known pallets.
 4. Broadcast bids and resolve claims.
 5. Move robots one step with local conflict handling.
-6. Deliver pallets to exits or store them in intermediate areas.
+6. Deliver pallets directly to exits.
 7. Update battery, recharge state, and metrics.
 
 ## Main Project Files
@@ -158,9 +159,9 @@ Tracked indicators include:
 These are known issues in the current implementation and are intentionally left visible for comparison before the next fix iteration:
 
 - battery feasibility is not yet enforced as a hard constraint before pickup
-- robots can still accept tasks that later become unsafe
-- intermediate retrieval needs refinement in some scenarios
-- dynamic battery threshold logic for best fallback routing is still heuristic-based
+- local conflict handling is still too weak under dense direct-only dispatch
+- robots can converge on the same corridors and lose throughput through repeated blocking
+- this branch does not exploit intermediate buffering, which limits its ability to reduce congestion
 
 ## Tests
 
@@ -184,7 +185,6 @@ If generated files are already tracked in git, remove them from the repository o
 
 ## Suggested Next Work
 
-- enforce battery-feasible task acceptance
-- compute dynamic critical threshold based on safe fallback path
-- fix any pallet stranding edge cases
-- compare current behavior against the stricter battery-safe version
+- add anti-congestion task selection or corridor-aware dispatch
+- reintroduce selective intermediate usage only when it reduces conflicts
+- compare this direct-only policy against the safer hybrid policy and the no-intermediate baseline
