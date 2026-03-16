@@ -2,6 +2,23 @@
 
 Java/Gradle warehouse simulator for the 2026 multi-agent programming project.
 
+## Current Branch Performance Snapshot
+
+Results below are aggregated from `build/suite/run-1773320590505` (seeds 150, 151, 152).
+
+### Reference vs Best Optimized (Mean Over Seeds)
+
+| Arrival Rate | Reference Delivered | Best Optimized Delivered | Best Optimized Fleet | Reference Backlog | Best Optimized Backlog |
+| ------------ | ------------------: | -----------------------: | -------------------: | ----------------: | ---------------------: |
+| 300          |              437.00 |                    80.33 |                    6 |             18.00 |                 374.67 |
+| 400          |              580.00 |                    81.33 |                    6 |             15.00 |                 513.67 |
+| 500          |              716.33 |                    82.33 |                    6 |             30.00 |                 664.00 |
+
+### Key Observation
+
+- In this branch, optimized throughput remains far below reference throughput and backlog grows sharply as arrival rate increases.
+- Increasing optimized fleet size from 4 to 6 improves delivered count, but performance still saturates around ~80 delivered pallets.
+
 ## What Is Implemented
 
 The project currently includes:
