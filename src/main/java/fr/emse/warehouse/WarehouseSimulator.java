@@ -618,7 +618,7 @@ public class WarehouseSimulator {
                 }
                 return;
             }
-            if (robot.getBattery() <= config.getWarningThreshold()) {
+            if (robot.getBattery() <= config.getCriticalThreshold()) {
                 robot.setState(RobotState.MOVING_TO_RECHARGE);
             } else {
                 claimIntermediateIfNearby(robot);
