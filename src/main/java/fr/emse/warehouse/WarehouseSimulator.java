@@ -719,28 +719,40 @@ public class WarehouseSimulator {
             if (pickupCost >= Integer.MAX_VALUE / 8 || directDeliveryCost >= Integer.MAX_VALUE / 8) {
                 continue;
             }
+            int carryToRechargeCost = pathfinder.shortestDistance(
+                pallet.getPosition(),
+                config.getRechargeZone().getPosition(),
+                blocked
+            );
+            if (carryToRechargeCost >= Integer.MAX_VALUE / 8) {
+                continue;
+            }
             int congestionPenalty = blocked.contains(pallet.getPosition()) ? 4 : 0;
-            int needed = pickupCost + directDeliveryCost + config.getSafeMargin();
-            int batteryPenalty = robot.getBattery() < needed ? (needed - robot.getBattery()) * 4 : 0;
+            int directNeeded = pickupCost + Math.min(directDeliveryCost, carryToRechargeCost) + config.getSafeMargin();
+            String targetZoneId;
+            double score;
 
-            Zone bestIntermediate = bestIntermediateZone(pallet, exit, blocked);
-            int queuePenalty = 0;
-            String targetZoneId = exit.getId();
-            int deliveryCost = directDeliveryCost;
-
-            if (bestIntermediate != null) {
-                int toInter = pathfinder.shortestDistance(pallet.getPosition(), bestIntermediate.getPosition(), blocked);
-                int interToExit = pathfinder.shortestDistance(bestIntermediate.getPosition(), exit.getPosition(), blocked);
-                int occupancyPenalty = bestIntermediate.getCapacity() == 0 ? 100 : (bestIntermediate.getOccupancy() * 5);
-                int viaCost = toInter + interToExit + occupancyPenalty;
-                if (viaCost + 2 < directDeliveryCost || robot.getBattery() < needed) {
-                    deliveryCost = toInter;
-                    targetZoneId = bestIntermediate.getId();
-                    queuePenalty = occupancyPenalty;
+            if (robot.getBattery() >= directNeeded) {
+                targetZoneId = exit.getId();
+                score = pickupCost + directDeliveryCost + congestionPenalty;
+            } else {
+                Zone bestIntermediate = bestIntermediateZone(pallet, exit, blocked);
+                if (bestIntermediate == null) {
+                    continue;
                 }
+                int toInter = pathfinder.shortestDistance(pallet.getPosition(), bestIntermediate.getPosition(), blocked);
+                if (toInter >= Integer.MAX_VALUE / 8) {
+                    continue;
+                }
+                int viaNeeded = pickupCost + Math.min(toInter, carryToRechargeCost) + config.getSafeMargin();
+                if (robot.getBattery() < viaNeeded) {
+                    continue;
+                }
+                targetZoneId = bestIntermediate.getId();
+                int queuePenalty = bestIntermediate.getCapacity() == 0 ? 100 : (bestIntermediate.getOccupancy() * 5);
+                score = pickupCost + toInter + congestionPenalty + queuePenalty;
             }
 
-            double score = pickupCost + deliveryCost + congestionPenalty + batteryPenalty + queuePenalty;
             if (best == null || score < best.score) {
                 best = new Bid(pallet, score, targetZoneId);
             }
