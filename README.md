@@ -9,10 +9,10 @@ The following results summarize the current branch using suite defaults (10 seed
 ### Reference vs Best Optimized (Mean Over Seeds)
 
 | Arrival Rate | Reference Delivered | Best Optimized Delivered | Best Optimized Fleet | Reference Avg Delivery Time | Best Optimized Avg Delivery Time |
-|---|---:|---:|---:|---:|---:|
-| 300 | 74.00 | 14.60 | 6 | 48.05 | 97.44 |
-| 400 | 101.80 | 15.50 | 6 | 47.58 | 91.21 |
-| 500 | 132.00 | 15.30 | 6 | 47.77 | 92.08 |
+| ------------ | ------------------: | -----------------------: | -------------------: | --------------------------: | -------------------------------: |
+| 300          |               74.00 |                    14.60 |                    6 |                       48.05 |                            97.44 |
+| 400          |              101.80 |                    15.50 |                    6 |                       47.58 |                            91.21 |
+| 500          |              132.00 |                    15.30 |                    6 |                       47.77 |                            92.08 |
 
 ### Analysis
 
