@@ -13,6 +13,8 @@ public class ExperimentSuite {
 
     public List<SimulationResult> runDefaultComparison() throws IOException {
         List<SimulationResult> results = new ArrayList<SimulationResult>();
+        String runTag = "run-" + System.currentTimeMillis();
+        String suiteDir = "build/suite/" + runTag;
         int[] seeds = new int[] { baseConfig.getSeed(), baseConfig.getSeed() + 1, baseConfig.getSeed() + 2 };
         double[] rates = new double[] {
             Math.max(0.1d, baseConfig.getPalletRate() * 0.75d),
@@ -28,7 +30,7 @@ public class ExperimentSuite {
         for (int seed : seeds) {
             for (double rate : rates) {
                 String rateTag = String.valueOf(Math.round(rate * 1000));
-                String referenceMetricsFile = "build/suite/reference-seed-" + seed + "-rate-" + rateTag + ".csv";
+                String referenceMetricsFile = suiteDir + "/reference-seed-" + seed + "-rate-" + rateTag + ".csv";
                 WarehouseConfig reference = baseConfig.copyWith(
                     SimulationMode.REFERENCE,
                     seed,
@@ -39,7 +41,7 @@ public class ExperimentSuite {
                 results.add(new WarehouseSimulator(reference).run());
 
                 for (int fleet : fleets) {
-                    String optimizedMetricsFile = "build/suite/optimized-seed-" + seed + "-rate-" + rateTag + "-fleet-" + fleet + ".csv";
+                    String optimizedMetricsFile = suiteDir + "/optimized-seed-" + seed + "-rate-" + rateTag + "-fleet-" + fleet + ".csv";
                     WarehouseConfig optimized = baseConfig.copyWith(
                         SimulationMode.OPTIMIZED,
                         seed,
@@ -51,12 +53,19 @@ public class ExperimentSuite {
                 }
             }
         }
+
+        int expectedScenarios = seeds.length * rates.length * (1 + fleets.length);
+        if (results.size() != expectedScenarios) {
+            throw new IOException("Suite completed " + results.size() + " scenarios, expected " + expectedScenarios);
+        }
         return results;
     }
 
     public MinimumAmrSearchResult findMinimumFleetForTarget(double targetAverageDeliveryTime, int minFleet, int maxFleet) throws IOException {
         int low = Math.max(1, minFleet);
         int high = Math.max(low, maxFleet);
+        String runTag = "run-" + System.currentTimeMillis();
+        String searchDir = "build/min-amr-search/" + runTag;
         int[] seeds = new int[] { baseConfig.getSeed(), baseConfig.getSeed() + 1, baseConfig.getSeed() + 2 };
 
         int selectedFleet = high;
@@ -67,7 +76,7 @@ public class ExperimentSuite {
             double sum = 0.0d;
             int count = 0;
             for (int seed : seeds) {
-                String metricsFile = "build/min-amr-search/metrics-fleet-" + fleet + "-seed-" + seed + ".csv";
+                String metricsFile = searchDir + "/metrics-fleet-" + fleet + "-seed-" + seed + ".csv";
                 WarehouseConfig optimized = baseConfig.copyWith(
                     SimulationMode.OPTIMIZED,
                     seed,

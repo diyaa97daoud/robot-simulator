@@ -11,6 +11,7 @@ public class SimulationMetrics {
     private int messagesSent;
     private int intermediateOccupancySum;
     private int intermediateSamples;
+    private int undeliveredBacklog;
 
     public void addDeliveryTime(int value) {
         totalDeliveryTime += Math.max(0, value);
@@ -93,5 +94,13 @@ public class SimulationMetrics {
             return 0.0d;
         }
         return ((double) intermediateOccupancySum) / intermediateSamples;
+    }
+
+    public int getUndeliveredBacklog() {
+        return undeliveredBacklog;
+    }
+
+    public void setUndeliveredBacklog(int undeliveredBacklog) {
+        this.undeliveredBacklog = Math.max(0, undeliveredBacklog);
     }
 }

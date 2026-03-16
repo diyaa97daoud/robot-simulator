@@ -17,6 +17,7 @@ public class ExperimentRunner {
     public static void printResult(SimulationResult result) {
         SimulationMetrics m = result.getMetrics();
         System.out.println("Delivered pallets: " + m.getDeliveredPallets());
+        System.out.println("Undelivered backlog: " + m.getUndeliveredBacklog());
         System.out.println("Total delivery time: " + m.getTotalDeliveryTime());
         System.out.println("Average delivery time: " + String.format("%.3f", m.getAveragePalletDeliveryTime()));
         System.out.println("Total distance: " + m.getTotalDistance());

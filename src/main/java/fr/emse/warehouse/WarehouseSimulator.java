@@ -105,6 +105,7 @@ public class WarehouseSimulator {
             config.getAmrCount(),
             metrics
         );
+        metrics.setUndeliveredBacklog(countUndeliveredPallets());
         writeMetrics(result, config.getMetricsOutputFile());
         if (listener != null) {
             listener.onCompleted(result);
@@ -279,6 +280,7 @@ public class WarehouseSimulator {
                 robot.incrementWaitingSteps();
                 metrics.addRobotWaitStep();
             }
+            synchronizeCarriedPalletWithRobot(robot);
             applyStateTransitions(robot, step);
         }
     }
@@ -292,6 +294,14 @@ public class WarehouseSimulator {
         }
 
         for (RobotAgent robot : robots) {
+            if (robot.getCarryingPalletId() != null
+                && (robot.getState() == RobotState.MOVING_TO_RECHARGE
+                    || robot.getState() == RobotState.RECHARGING
+                    || robot.getState() == RobotState.WAITING)) {
+                resumeCarryState(robot);
+                continue;
+            }
+
             if (robot.getState() == RobotState.RECHARGING) {
                 Integer start = robot.getRechargeStartStep();
                 if (start != null && step - start >= config.getRechargeDuration()) {
@@ -494,7 +504,9 @@ public class WarehouseSimulator {
         if (robot.getState() == RobotState.RECHARGING) {
             return robot.getPosition();
         }
-        if (robot.getBattery() <= config.getCriticalThreshold() && robot.getState() != RobotState.MOVING_TO_RECHARGE) {
+        if (robot.getCarryingPalletId() == null
+            && robot.getBattery() <= config.getCriticalThreshold()
+            && robot.getState() != RobotState.MOVING_TO_RECHARGE) {
             robot.setState(RobotState.MOVING_TO_RECHARGE);
         }
 
@@ -855,6 +867,45 @@ public class WarehouseSimulator {
         robot.setTargetPalletId(null);
         robot.setTargetZoneId(null);
         robot.setState(RobotState.IDLE);
+    }
+
+    private void synchronizeCarriedPalletWithRobot(RobotAgent robot) {
+        Integer carryingId = robot.getCarryingPalletId();
+        if (carryingId == null) {
+            return;
+        }
+        Pallet carrying = palletById(carryingId);
+        if (carrying == null) {
+            return;
+        }
+        carrying.setStatus(PalletStatus.CARRIED_BY_ROBOT);
+        carrying.setAssignedRobotId(robot.getId());
+        carrying.setPosition(robot.getPosition());
+    }
+
+    private void resumeCarryState(RobotAgent robot) {
+        Pallet carrying = palletById(robot.getCarryingPalletId());
+        if (carrying == null) {
+            resetRobotTask(robot);
+            return;
+        }
+        String targetZoneId = robot.getTargetZoneId();
+        if (targetZoneId != null && targetZoneId.startsWith("I")) {
+            robot.setState(RobotState.CARRYING_TO_INTERMEDIATE);
+            return;
+        }
+        robot.setTargetZoneId(carrying.getDestinationExitZoneId());
+        robot.setState(RobotState.CARRYING_TO_EXIT);
+    }
+
+    private int countUndeliveredPallets() {
+        int undelivered = 0;
+        for (Pallet pallet : pallets.values()) {
+            if (pallet.getStatus() != PalletStatus.DELIVERED) {
+                undelivered++;
+            }
+        }
+        return undelivered;
     }
 
     private void writeMetrics(SimulationResult result, String filePath) throws IOException {

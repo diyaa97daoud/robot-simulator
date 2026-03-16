@@ -14,12 +14,13 @@ public class SimulationResult {
     }
 
     public String toCsvHeader() {
-        return "mode,seed,amrCount,delivered,totalDeliveryTime,avgDeliveryTime,totalDistance,rechargeCount,rechargeWaitSteps,blockedConflicts,messagesSent,avgIntermediateOccupancy";
+        return "mode,seed,amrCount,delivered,undeliveredBacklog,totalDeliveryTime,avgDeliveryTime,totalDistance,rechargeCount,rechargeWaitSteps,blockedConflicts,messagesSent,avgIntermediateOccupancy";
     }
 
     public String toCsvRow() {
         return mode + "," + seed + "," + amrCount + ","
             + metrics.getDeliveredPallets() + ","
+            + metrics.getUndeliveredBacklog() + ","
             + metrics.getTotalDeliveryTime() + ","
             + String.format("%.3f", metrics.getAveragePalletDeliveryTime()) + ","
             + metrics.getTotalDistance() + ","
