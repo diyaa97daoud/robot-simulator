@@ -2,6 +2,25 @@
 
 Java/Gradle warehouse simulator for the 2026 multi-agent programming project.
 
+## Current Branch Performance Snapshot
+
+The following results summarize the current branch using suite defaults (10 seeds, 300 steps per run).
+
+### Reference vs Best Optimized (Mean Over Seeds)
+
+| Arrival Rate | Reference Delivered | Best Optimized Delivered | Best Optimized Fleet | Reference Avg Delivery Time | Best Optimized Avg Delivery Time |
+|---|---:|---:|---:|---:|---:|
+| 300 | 74.00 | 14.60 | 6 | 48.05 | 97.44 |
+| 400 | 101.80 | 15.50 | 6 | 47.58 | 91.21 |
+| 500 | 132.00 | 15.30 | 6 | 47.77 | 92.08 |
+
+### Analysis
+
+- The optimized strategy remains substantially below reference throughput in this short-horizon setting.
+- Relative optimized throughput decreases as arrival rate increases (about 19.7% at rate 300, 15.2% at rate 400, 11.6% at rate 500).
+- Fleet size 6 is consistently the best optimized fleet, but delivered pallets still saturate around 15 in 300 steps.
+- Average optimized delivery time is roughly double the reference value, which aligns with more conservative battery behavior and more frequent charging.
+
 ## What Is Implemented
 
 The project currently includes:
@@ -73,6 +92,11 @@ Run the comparison suite:
 ```bash
 ./gradlew run --args="--suite"
 ```
+
+Default suite settings in this branch:
+
+- 10 seeds (`baseSeed` to `baseSeed + 9`)
+- 300 simulation steps per run
 
 Run tests:
 

@@ -339,12 +339,23 @@ public class WarehouseConfig {
     }
 
     public WarehouseConfig copyWith(SimulationMode newMode, Integer newSeed, Integer newAmrCount, Double newPalletRate, String newMetricsFile) {
+        return copyWith(newMode, newSeed, newAmrCount, newPalletRate, null, newMetricsFile);
+    }
+
+    public WarehouseConfig copyWith(
+        SimulationMode newMode,
+        Integer newSeed,
+        Integer newAmrCount,
+        Double newPalletRate,
+        Integer newSteps,
+        String newMetricsFile
+    ) {
         return new WarehouseConfig(
             newMode == null ? mode : newMode,
             communicationMode,
             rows,
             columns,
-            steps,
+            newSteps == null ? steps : newSteps,
             newSeed == null ? seed : newSeed,
             newAmrCount == null ? amrCount : newAmrCount,
             maxBattery,
