@@ -2,6 +2,22 @@
 
 Java/Gradle warehouse simulator for the 2026 multi-agent programming project.
 
+## Model Branch Map
+
+This `main` branch now corresponds to **Model 2**, the direct-delivery controller with carry-through recharge, after merging `feature/carrying-pallet-to-charging-zones`.
+
+The three reported optimized models are linked to branches as follows:
+
+- **Model 1**: `feature/warehouse-simulator-ui-baseline`
+  - Heuristic bid/claim coordination with intermediate-area fallback.
+- **Model 2**: `main`
+  - Current default branch.
+  - Direct delivery with carry-through recharge and no intermediate usage in practice.
+- **Model 3**: `feature/low-threshold-with-hard-pickup-feasibility`
+  - Hard battery-feasible direct-delivery bidding that removes intermediate usage by rejecting risky assignments before pickup.
+
+If you want to compare the controller variants directly, switch branches and run the same suite configuration on each branch.
+
 ## Current Branch Performance Snapshot
 
 The following results summarize the last suite run recorded on this branch using suite defaults (10 seeds, 300 steps per run). Re-run the suite after the latest carry-to-charge direct-delivery changes to refresh these numbers.
@@ -165,9 +181,3 @@ The repository ignores generated/local artifacts such as:
 - local `.class` files
 
 If generated files are already tracked in git, remove them from the repository once and keep them ignored afterward.
-
-## Suggested Next Work
-
-- run the suite again to measure the carry-to-charge policy against the other two models
-- compare recharge waiting and blocked conflicts against the stricter battery-safe version
-- decide whether recharge-zone contention needs an explicit queue policy
