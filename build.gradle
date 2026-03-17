@@ -16,9 +16,16 @@ repositories {
 dependencies {
   implementation('org.ini4j:ini4j:0.5.4')
   implementation files('lib/maqit-simulator-1.0-freeforward.jar')
+  testImplementation(platform('org.junit:junit-bom:5.12.1'))
+  testImplementation('org.junit.jupiter:junit-jupiter')
+  testRuntimeOnly('org.junit.platform:junit-platform-launcher')
 }
 
 tasks.named('run') {
   classpath = sourceSets.main.runtimeClasspath
   mainClass = 'fr.emse.Main'
+}
+
+tasks.named('test') {
+  useJUnitPlatform()
 }
