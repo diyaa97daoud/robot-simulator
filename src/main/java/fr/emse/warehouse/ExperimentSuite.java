@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ExperimentSuite {
+    private static final int DEFAULT_SUITE_SEED_COUNT = 10;
+    private static final int DEFAULT_SUITE_STEPS = 300;
+
     private final WarehouseConfig baseConfig;
 
     public ExperimentSuite(WarehouseConfig baseConfig) {
@@ -15,7 +18,7 @@ public class ExperimentSuite {
         List<SimulationResult> results = new ArrayList<SimulationResult>();
         String runTag = "run-" + System.currentTimeMillis();
         String suiteDir = "build/suite/" + runTag;
-        int[] seeds = new int[] { baseConfig.getSeed(), baseConfig.getSeed() + 1, baseConfig.getSeed() + 2 };
+        int[] seeds = buildSeedRange(baseConfig.getSeed(), DEFAULT_SUITE_SEED_COUNT);
         double[] rates = new double[] {
             Math.max(0.1d, baseConfig.getPalletRate() * 0.75d),
             baseConfig.getPalletRate(),
@@ -36,6 +39,7 @@ public class ExperimentSuite {
                     seed,
                     baseConfig.getAmrCount(),
                     rate,
+                    DEFAULT_SUITE_STEPS,
                     referenceMetricsFile
                 );
                 results.add(new WarehouseSimulator(reference).run());
@@ -47,6 +51,7 @@ public class ExperimentSuite {
                         seed,
                         fleet,
                         rate,
+                        DEFAULT_SUITE_STEPS,
                         optimizedMetricsFile
                     );
                     results.add(new WarehouseSimulator(optimized).run());
@@ -59,6 +64,15 @@ public class ExperimentSuite {
             throw new IOException("Suite completed " + results.size() + " scenarios, expected " + expectedScenarios);
         }
         return results;
+    }
+
+    private int[] buildSeedRange(int startSeed, int count) {
+        int safeCount = Math.max(1, count);
+        int[] seeds = new int[safeCount];
+        for (int i = 0; i < safeCount; i++) {
+            seeds[i] = startSeed + i;
+        }
+        return seeds;
     }
 
     public MinimumAmrSearchResult findMinimumFleetForTarget(double targetAverageDeliveryTime, int minFleet, int maxFleet) throws IOException {

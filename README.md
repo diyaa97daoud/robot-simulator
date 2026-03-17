@@ -4,20 +4,20 @@ Java/Gradle warehouse simulator for the 2026 multi-agent programming project.
 
 ## Current Branch Performance Snapshot
 
-Results below are aggregated from `build/suite/run-1773320590505` (seeds 150, 151, 152).
+Results below are aggregated from `build/suite/run-1773757946775` using the aligned comparison protocol (10 seeds, 300 steps per run).
 
 ### Reference vs Best Optimized (Mean Over Seeds)
 
-| Arrival Rate | Reference Delivered | Best Optimized Delivered | Best Optimized Fleet | Reference Backlog | Best Optimized Backlog |
-| ------------ | ------------------: | -----------------------: | -------------------: | ----------------: | ---------------------: |
-| 300          |              437.00 |                    80.33 |                    6 |             18.00 |                 374.67 |
-| 400          |              580.00 |                    81.33 |                    6 |             15.00 |                 513.67 |
-| 500          |              716.33 |                    82.33 |                    6 |             30.00 |                 664.00 |
+| Arrival Rate | Reference Delivered | Best Optimized Delivered | Best Optimized Fleet | Reference Avg Delivery Time | Best Optimized Avg Delivery Time |
+| ------------ | ------------------: | -----------------------: | -------------------: | --------------------------: | -------------------------------: |
+| 300          |               74.00 |                    14.60 |                    6 |                       48.05 |                            97.44 |
+| 400          |              101.80 |                    15.50 |                    6 |                       47.58 |                            91.21 |
+| 500          |              132.00 |                    15.50 |                    6 |                       47.77 |                            92.58 |
 
 ### Key Observation
 
-- In this branch, optimized throughput remains far below reference throughput and backlog grows sharply as arrival rate increases.
-- Increasing optimized fleet size from 4 to 6 improves delivered count, but performance still saturates around ~80 delivered pallets.
+- In this branch, optimized throughput remains far below reference throughput under the aligned 300-step suite.
+- Increasing optimized fleet size from 4 to 6 still improves delivered count, but optimized throughput saturates around 15 delivered pallets in the short-horizon setting.
 
 ## What Is Implemented
 
@@ -89,6 +89,11 @@ Run the comparison suite:
 ```bash
 ./gradlew run --args="--suite"
 ```
+
+Default suite settings in this branch:
+
+- 10 seeds (`baseSeed` to `baseSeed + 9`)
+- 300 simulation steps per run
 
 Run tests:
 

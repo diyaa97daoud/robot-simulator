@@ -59,6 +59,247 @@ The analyzed suite performs a controlled comparison across multiple seeds, arriv
 
 | Parameter                    | Value                             |
 | ---------------------------- | --------------------------------- |
+| Number of seeds              | 10                                |
+| Seeds used                   | 150 to 159                        |
+| Steps per run                | 300                               |
+| Arrival-rate tags            | 300, 400, 500                     |
+| Interpreted arrival rates    | 0.30, 0.40, 0.50 pallets per step |
+| Optimized fleet sizes tested | 4, 5, 6                           |
+| Reference runs               | 30                                |
+| Optimized runs               | 90                                |
+| Total runs                   | 120                               |
+
+## 4. Assumed Evaluation Criteria
+
+The following criteria were used to assess the first optimized model.
+
+| Criterion               | Interpretation                                          |
+| ----------------------- | ------------------------------------------------------- |
+| Throughput              | Number of pallets delivered within the 300-step horizon |
+| Responsiveness          | Average pallet delivery time                            |
+| Travel effort           | Total AMR travel distance                               |
+| Energy pressure         | Number of recharge events and recharge waiting steps    |
+| Coordination overhead   | Number of messages sent                                 |
+| Congestion              | Number of blocked movement conflicts                    |
+| Intermediate-area usage | Average intermediate occupancy                          |
+
+For this first optimized model, successful behavior is not defined by suppressing intermediate usage. On the contrary, intermediate storage is an intended coordination mechanism and should therefore be interpreted as part of the design rather than as a failure mode.
+
+## 5. Implemented Changes Relative to the Reference Model
+
+| Aspect              | Reference model            | Studied variant                                                   |
+| ------------------- | -------------------------- | ----------------------------------------------------------------- |
+| Task allocation     | Immediate direct handling  | Decentralized bid and claim assignment                            |
+| Robot persistence   | No persistent fleet        | Persistent fleet of AMRs                                          |
+| Communication       | None                       | Broadcast coordination, with dyadic support in the implementation |
+| Battery             | Ignored                    | Tracked at each robot move                                        |
+| Recharge            | Absent                     | Dedicated recharge area with limited capacity                     |
+| Routing             | Direct only                | Direct delivery or intermediate routing                           |
+| Congestion handling | Not modeled at robot level | Local movement conflict resolution                                |
+
+The key innovation of this first model is the introduction of a realistic constrained AMR fleet that must balance task assignment, charging, and path conflicts while still attempting to maintain throughput.
+
+## 6. Algorithms Used
+
+### 6.1 Path Planning
+
+Path planning is based on breadth-first search over a 4-neighbor grid. The same mechanism is used both to estimate shortest travel distances and to select the next movement step.
+
+### 6.2 Decentralized Task Allocation
+
+The optimized mode uses a decentralized bid and claim mechanism:
+
+1. Idle robots evaluate waiting pallets.
+2. Each robot computes its best bid according to a local score.
+3. Bids are broadcast.
+4. Winning bids are resolved per pallet.
+5. Claims assign selected robots to pallets.
+
+The bid score combines distance, congestion, battery, and storage terms:
+
+$$
+	ext{score} =
+	ext{pickupCost} +
+	ext{deliveryCost} +
+	ext{congestionPenalty} +
+	ext{batteryPenalty} +
+	ext{queuePenalty}
+$$
+
+where the queue term penalizes occupied intermediate zones and the battery term penalizes assignments that appear unsafe under the current charge level.
+
+### 6.3 Intermediate Storage Logic
+
+For each pallet, the controller compares direct delivery with routing through the best intermediate zone. Intermediate storage is selected when it is estimated to be more advantageous or when battery pressure makes direct delivery less desirable. Stored pallets can later be reclaimed by nearby idle robots.
+
+### 6.4 Battery and Recharge Policy
+
+The battery-management policy uses two thresholds.
+
+| Threshold               | Effect                                                                |
+| ----------------------- | --------------------------------------------------------------------- |
+| Critical threshold = 12 | Idle robots at or below this level are redirected to recharge         |
+| Warning threshold = 24  | Idle or waiting robots below this level are also directed to recharge |
+
+Charging is capacity-limited, and a recharge requires 12 simulation steps. The first optimized model does not enforce battery feasibility as a strict hard constraint before every pickup, which is an important limitation when interpreting the results.
+
+### 6.5 Conflict Resolution
+
+If several robots propose the same next cell, priority is assigned according to the following order:
+
+1. Robots carrying a pallet.
+2. Robots moving to recharge with lower battery level.
+3. Robots with lower current task load.
+4. Lower robot identifier.
+
+## 7. Validation and Testing
+
+Two validation layers support this analysis.
+
+### 7.1 Automated Unit Tests
+
+The project contains automated JUnit tests covering:
+
+| Test scope              | Purpose                                                        |
+| ----------------------- | -------------------------------------------------------------- |
+| Configuration parsing   | Ensures scenario parameters are read correctly                 |
+| Grid pathfinding        | Verifies obstacle-aware shortest-path behavior                 |
+| Reference mode behavior | Confirms the absence of communication in reference mode        |
+| Optimized mode behavior | Confirms that communication and recharge mechanisms are active |
+
+All currently available automated tests passed successfully:
+
+| Metric          | Result |
+| --------------- | ------ |
+| Total tests run | 8      |
+| Passed          | 8      |
+| Failed          | 0      |
+
+### 7.2 Experimental Validation
+
+The main empirical validation is the archived comparison suite used for this report. Metrics were computed from the exported CSV files generated by the suite rather than from UI inspection.
+
+## 8. Experimental Results
+
+### 8.1 Reference Model Performance
+
+Values are reported as mean +- standard deviation over 10 seeds.
+
+| Arrival-rate tag | Effective rate | Delivered pallets | Average delivery time | Total distance |
+| ---------------- | -------------- | ----------------- | --------------------- | -------------- |
+| 300              | 0.30           | 74.00 +- 9.72     | 48.05 +- 0.87         | 3556.80        |
+| 400              | 0.40           | 101.80 +- 7.41    | 47.58 +- 0.59         | 4842.60        |
+| 500              | 0.50           | 132.00 +- 9.60    | 47.77 +- 0.71         | 6307.40        |
+
+The reference model maintains substantially higher throughput because it does not include fleet-sharing, charging, congestion resolution, or communication overhead.
+
+### 8.2 Optimized Variant Performance by Fleet Size
+
+Values are mean values over 10 seeds.
+
+| Arrival-rate tag | Effective rate | Fleet | Delivered pallets | Average delivery time | Total distance | Recharge count | Blocked conflicts | Messages sent | Avg. intermediate occupancy |
+| ---------------- | -------------- | ----- | ----------------- | --------------------- | -------------- | -------------- | ----------------- | ------------- | --------------------------- |
+| 300              | 0.30           | 4     | 11.20             | 99.69                 | 1043.40        | 9.10           | 51.70             | 49.30         | 0.081                       |
+| 300              | 0.30           | 5     | 12.90             | 93.43                 | 1270.10        | 10.90          | 101.20            | 61.30         | 0.240                       |
+| 300              | 0.30           | 6     | 14.60             | 97.44                 | 1489.50        | 12.90          | 145.70            | 73.60         | 0.392                       |
+| 400              | 0.40           | 4     | 11.50             | 97.89                 | 1040.20        | 9.00           | 51.20             | 52.20         | 0.159                       |
+| 400              | 0.40           | 5     | 13.50             | 91.12                 | 1272.60        | 10.80          | 95.20             | 64.10         | 0.079                       |
+| 400              | 0.40           | 6     | 15.50             | 91.21                 | 1495.30        | 12.90          | 139.80            | 77.30         | 0.079                       |
+| 500              | 0.50           | 4     | 11.40             | 102.96                | 1043.10        | 9.10           | 52.40             | 52.90         | 0.244                       |
+| 500              | 0.50           | 5     | 13.80             | 91.07                 | 1277.20        | 11.00          | 90.30             | 66.10         | 0.080                       |
+| 500              | 0.50           | 6     | 15.50             | 92.58                 | 1501.30        | 12.90          | 138.40            | 79.00         | 0.240                       |
+
+### 8.3 Best Optimized Configuration Compared With the Reference
+
+For every tested arrival rate, the best optimized throughput is obtained with fleet size 6.
+
+| Arrival-rate tag | Best optimized fleet | Optimized delivered | Reference delivered | Throughput vs. reference | Optimized avg. delivery time | Reference avg. delivery time | Time ratio |
+| ---------------- | -------------------- | ------------------- | ------------------- | ------------------------ | ---------------------------- | ---------------------------- | ---------- |
+| 300              | 6                    | 14.60               | 74.00               | 19.73%                   | 97.44                        | 48.05                        | 2.03x      |
+| 400              | 6                    | 15.50               | 101.80              | 15.23%                   | 91.21                        | 47.58                        | 1.92x      |
+| 500              | 6                    | 15.50               | 132.00              | 11.74%                   | 92.58                        | 47.77                        | 1.94x      |
+
+### 8.4 Statistical View of the Best Optimized Configuration
+
+Values are mean +- standard deviation over 10 seeds.
+
+| Arrival-rate tag | Fleet | Delivered pallets | Average delivery time | Recharge count | Blocked conflicts | Messages sent | Avg. intermediate occupancy |
+| ---------------- | ----- | ----------------- | --------------------- | -------------- | ----------------- | ------------- | --------------------------- |
+| 300              | 6     | 14.60 +- 0.52     | 97.44 +- 9.29         | 12.90 +- 0.57  | 145.70 +- 27.53   | 73.60 +- 2.50 | 0.39 +- 0.55                |
+| 400              | 6     | 15.50 +- 0.53     | 91.21 +- 11.57        | 12.90 +- 0.57  | 139.80 +- 15.35   | 77.30 +- 4.99 | 0.08 +- 0.25                |
+| 500              | 6     | 15.50 +- 0.53     | 92.58 +- 15.00        | 12.90 +- 0.32  | 138.40 +- 19.35   | 79.00 +- 3.02 | 0.24 +- 0.39                |
+
+### 8.5 Evidence Concerning Intermediate-Area Usage
+
+Intermediate storage is part of the model design, so its presence is expected rather than anomalous.
+
+| Indicator                                           | Value   |
+| --------------------------------------------------- | ------- |
+| Optimized runs with zero intermediate occupancy     | 71 / 90 |
+| Optimized runs with non-zero intermediate occupancy | 19 / 90 |
+| Maximum observed average intermediate occupancy     | 1.520   |
+
+These values indicate that the first optimized model uses intermediate areas opportunistically rather than continuously. Occupancy remains moderate, which suggests that intermediates are used as occasional relief points instead of becoming the dominant routing mode.
+
+## 9. Analysis and Discussion
+
+Several observations emerge from the suite results.
+
+First, the first optimized model clearly improves realism relative to the reference baseline, but it does so at a very large performance cost. Even with 6 AMRs, the optimized configuration delivers only about 15 pallets across all tested arrival rates, whereas the reference model delivers between 74.0 and 132.0 pallets over the same 300-step horizon.
+
+Second, increasing the fleet from 4 to 6 AMRs improves throughput, but the gain remains modest relative to the increase in demand. This indicates that the system bottleneck is not merely fleet size. Recharge behavior, communication overhead, and motion conflicts also limit overall productivity.
+
+Third, throughput saturates at a low level as the arrival rate increases. The best fleet improves only from 14.6 delivered pallets at rate 0.30 to 15.5 at rates 0.40 and 0.50, which shows that the first optimized model does not scale adequately under higher demand in the short-horizon setting.
+
+Fourth, the average delivery time remains roughly twice the reference value. This indicates that the optimized controller spends significant time in non-productive states such as repositioning, charging, waiting, or resolving congestion.
+
+Fifth, recharge counts remain high at approximately 12.9 recharge sessions for the best fleet regardless of arrival rate. This suggests that battery management is a persistent operational constraint and likely one of the main causes of throughput saturation.
+
+Finally, message counts and blocked conflicts both increase with fleet size. This means that adding robots also increases coordination and congestion costs. The first optimized model therefore demonstrates the classic multi-agent trade-off between parallelism and interference.
+
+## 10. Main Findings
+
+| Finding                                                     | Interpretation                                                                          |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Fleet size 6 is consistently the best optimized fleet       | More robots improve throughput, but only moderately                                     |
+| Throughput saturates around 15 delivered pallets            | The first optimized controller does not scale with demand in the short-horizon setting  |
+| Throughput grows only marginally as arrival rate increases  | Demand outpaces the capacity of the coordinated fleet                                   |
+| Delivery times are about 1.9x to 2.0x larger than reference | Realistic coordination costs remain substantial in this version                         |
+| Recharge counts remain near 12.9 for the best fleet         | Battery management is a dominant bottleneck                                             |
+| Intermediate occupancy remains moderate and intermittent    | Intermediate areas are used as auxiliary storage rather than as the main transport path |
+| Conflict and message counts increase with fleet size        | More robots create more interference and communication overhead                         |
+
+## 11. Conclusion
+
+The first optimized model is an important step beyond the reference simulation because it introduces persistent AMRs, decentralized task allocation, explicit battery management, recharging constraints, and intermediate storage. From a modeling perspective, it succeeds in representing a substantially more realistic warehouse-control problem.
+
+However, the experimental results show that this first design remains far less efficient than the reference baseline under the aligned 300-step suite. Throughput saturates at roughly 15 delivered pallets, average delivery times remain about twice the reference value, and recharge and congestion costs remain high. The first optimized model therefore demonstrates the feasibility of decentralized coordination under realistic constraints, but not yet an effective coordination mechanism for minimizing total pallet delivery time.
+
+## 12. Suggested Report Positioning
+
+> The first optimized model extends the reference warehouse simulation by replacing the idealized one-pallet-one-robot assumption with a persistent shared AMR fleet coordinated through decentralized bidding and claiming. The model introduces battery-aware operation, recharge constraints, intermediate storage areas, and local conflict resolution. Experimental results show that these additions substantially increase realism but also impose severe throughput and delay penalties even under an aligned short-horizon comparison protocol. The model therefore serves as a foundational constrained coordination baseline rather than as a high-performance decentralized solution.
+
+| Parameter            | Value                                             |
+| -------------------- | ------------------------------------------------- |
+| Base simulation mode | Optimized                                         |
+| Base fleet size      | 6 AMRs                                            |
+| Communication mode   | Broadcast                                         |
+| Arrival distribution | Poisson                                           |
+| Base arrival rate    | 0.40 pallets per step                             |
+| Battery capacity     | 80                                                |
+| Critical threshold   | 12                                                |
+| Warning threshold    | 24                                                |
+| Safe battery margin  | 8                                                 |
+| Recharge duration    | 12 steps                                          |
+| Recharge capacity    | 2 robots                                          |
+| Main routing options | Direct delivery or temporary intermediate storage |
+
+### 3.3 Suite Protocol
+
+The analyzed suite performs a controlled comparison across multiple seeds, arrival rates, and fleet sizes.
+
+| Parameter                    | Value                             |
+| ---------------------------- | --------------------------------- |
 | Number of seeds              | 3                                 |
 | Seeds used                   | 150 to 152                        |
 | Steps per run                | 1500                              |
@@ -119,12 +360,12 @@ The optimized mode uses a decentralized bid and claim mechanism:
 The bid score combines distance, congestion, battery, and storage terms:
 
 $$
-	ext{score} =
-	ext{pickupCost} +
-	ext{deliveryCost} +
-	ext{congestionPenalty} +
-	ext{batteryPenalty} +
-	ext{queuePenalty}
+\text{score} =
+\text{pickupCost} +
+\text{deliveryCost} +
+\text{congestionPenalty} +
+\text{batteryPenalty} +
+\text{queuePenalty}
 $$
 
 where the queue term penalizes occupied intermediate zones and the battery term penalizes assignments that appear unsafe under the current charge level.
@@ -279,6 +520,4 @@ However, the experimental results show that this first design remains far less e
 
 ## 12. Suggested Report Positioning
 
-A precise academic wording for this model is the following:
-
-> The first optimized model extends the reference warehouse simulation by replacing the idealized one-pallet-one-robot assumption with a persistent shared AMR fleet coordinated through decentralized bidding and claiming. The model introduces battery-aware operation, recharge constraints, intermediate storage areas, and local conflict resolution. Experimental results show that these additions substantially increase realism but also impose severe throughput and delay penalties. The model therefore serves as a foundational constrained coordination baseline rather than as a high-performance decentralized solution.
+> The first optimized model extends the reference warehouse simulation by replacing the idealized one-pallet-one-robot assumption with a persistent shared AMR fleet coordinated through decentralized bidding and claiming. The model introduces battery-aware operation, recharge constraints, intermediate storage areas, and local conflict resolution. Experimental results show that these additions substantially increase realism but also impose severe throughput and delay penalties. The model therefore serves as a foundational constrained coordination baseline rather than as a high-performance decentralized solution.# Initial Optimized Coordination Model
