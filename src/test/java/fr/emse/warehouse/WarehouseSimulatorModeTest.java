@@ -1,12 +1,11 @@
 package fr.emse.warehouse;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 class WarehouseSimulatorModeTest {
@@ -27,11 +26,11 @@ class WarehouseSimulatorModeTest {
     }
 
     @Test
-    void optimizedModeAllowsRechargingWhileCarryingPallet() throws Exception {
+    void optimizedModeCarriesPalletToRechargeWithoutUsingIntermediateStorage() throws Exception {
         WarehouseConfig config = WarehouseConfig.fromIni(writeCarryRechargeConfig());
         AtomicBoolean sawRechargingWithPallet = new AtomicBoolean(false);
         WarehouseSimulator simulator = new WarehouseSimulator(config);
-        simulator.run(new SimulationStepListener() {
+        SimulationResult result = simulator.run(new SimulationStepListener() {
             @Override
             public void onStep(SimulationSnapshot snapshot) {
                 for (SimulationSnapshot.RobotView robotView : snapshot.getRobots()) {
@@ -48,6 +47,7 @@ class WarehouseSimulatorModeTest {
             }
         });
         assertTrue(sawRechargingWithPallet.get());
+        assertEquals(0.0d, result.getMetrics().getAverageIntermediateOccupancy(), 0.0001d);
     }
 
     private String writeConfig(String mode) throws Exception {

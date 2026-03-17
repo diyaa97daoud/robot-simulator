@@ -4,7 +4,7 @@ Java/Gradle warehouse simulator for the 2026 multi-agent programming project.
 
 ## Current Branch Performance Snapshot
 
-The following results summarize the current branch using suite defaults (10 seeds, 300 steps per run).
+The following results summarize the last suite run recorded on this branch using suite defaults (10 seeds, 300 steps per run). Re-run the suite after the latest carry-to-charge direct-delivery changes to refresh these numbers.
 
 ### Reference vs Best Optimized (Mean Over Seeds)
 
@@ -34,8 +34,8 @@ The project currently includes:
   - fixed AMR fleet
   - decentralized bid/claim task allocation
   - battery tracking and recharge area constraints
+  - direct-delivery assignments
   - recharge while carrying pallet support
-  - intermediate storage areas
   - local movement conflict resolution
   - metrics export
 - Live warehouse UI showing:
@@ -56,7 +56,7 @@ At each simulation step the optimized simulator does:
 3. Let idle AMRs evaluate known pallets.
 4. Broadcast bids and resolve claims.
 5. Move robots one step with local conflict handling.
-6. Deliver pallets to exits or store them in intermediate areas.
+6. Deliver pallets to exits, or temporarily recharge while still carrying the pallet if needed.
 7. Update battery, recharge state, and metrics.
 
 ## Main Project Files
@@ -143,8 +143,8 @@ These are known issues in the current implementation and are intentionally left 
 
 - battery feasibility is not yet enforced as a hard constraint before pickup
 - robots can still accept tasks that later become unsafe
-- intermediate retrieval needs refinement in some scenarios
-- dynamic battery threshold logic for best fallback routing is still heuristic-based
+- the controller is still heuristic-based and does not enforce hard pre-bid battery feasibility
+- recharge-zone contention may increase because carrying robots keep ownership of pallets while charging
 
 ## Tests
 
@@ -168,7 +168,6 @@ If generated files are already tracked in git, remove them from the repository o
 
 ## Suggested Next Work
 
-- enforce battery-feasible task acceptance
-- compute dynamic critical threshold based on safe fallback path
-- fix any pallet stranding edge cases
-- compare current behavior against the stricter battery-safe version
+- run the suite again to measure the carry-to-charge policy against the other two models
+- compare recharge waiting and blocked conflicts against the stricter battery-safe version
+- decide whether recharge-zone contention needs an explicit queue policy

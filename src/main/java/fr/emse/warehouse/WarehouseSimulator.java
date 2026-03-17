@@ -630,26 +630,7 @@ public class WarehouseSimulator {
         if (!robot.isIdleLike()) {
             return;
         }
-        Pallet best = null;
-        int bestDist = Integer.MAX_VALUE;
-        for (Pallet pallet : pallets.values()) {
-            if (pallet.getStatus() != PalletStatus.STORED_INTERMEDIATE || pallet.getAssignedRobotId() != null) {
-                continue;
-            }
-            int dist = robot.getPosition().manhattanDistance(pallet.getPosition());
-            if (dist < bestDist) {
-                bestDist = dist;
-                best = pallet;
-            }
-        }
-        if (best == null) {
-            robot.setState(RobotState.IDLE);
-            return;
-        }
-        best.setAssignedRobotId(robot.getId());
-        robot.setTargetPalletId(best.getId());
-        robot.setTargetZoneId(best.getDestinationExitZoneId());
-        robot.setState(RobotState.MOVING_TO_INTERMEDIATE_PICKUP);
+        robot.setState(RobotState.IDLE);
     }
 
     private Map<Integer, Position> resolveConflicts(Map<Integer, Position> proposedMoves) {
@@ -722,45 +703,11 @@ public class WarehouseSimulator {
             int congestionPenalty = blocked.contains(pallet.getPosition()) ? 4 : 0;
             int needed = pickupCost + directDeliveryCost + config.getSafeMargin();
             int batteryPenalty = robot.getBattery() < needed ? (needed - robot.getBattery()) * 4 : 0;
-
-            Zone bestIntermediate = bestIntermediateZone(pallet, exit, blocked);
-            int queuePenalty = 0;
             String targetZoneId = exit.getId();
-            int deliveryCost = directDeliveryCost;
 
-            if (bestIntermediate != null) {
-                int toInter = pathfinder.shortestDistance(pallet.getPosition(), bestIntermediate.getPosition(), blocked);
-                int interToExit = pathfinder.shortestDistance(bestIntermediate.getPosition(), exit.getPosition(), blocked);
-                int occupancyPenalty = bestIntermediate.getCapacity() == 0 ? 100 : (bestIntermediate.getOccupancy() * 5);
-                int viaCost = toInter + interToExit + occupancyPenalty;
-                if (viaCost + 2 < directDeliveryCost || robot.getBattery() < needed) {
-                    deliveryCost = toInter;
-                    targetZoneId = bestIntermediate.getId();
-                    queuePenalty = occupancyPenalty;
-                }
-            }
-
-            double score = pickupCost + deliveryCost + congestionPenalty + batteryPenalty + queuePenalty;
+            double score = pickupCost + directDeliveryCost + congestionPenalty + batteryPenalty;
             if (best == null || score < best.score) {
                 best = new Bid(pallet, score, targetZoneId);
-            }
-        }
-        return best;
-    }
-
-    private Zone bestIntermediateZone(Pallet pallet, Zone exit, Set<Position> blocked) {
-        Zone best = null;
-        int bestScore = Integer.MAX_VALUE;
-        for (Zone zone : config.getIntermediateZones()) {
-            if (!zone.hasSpace()) {
-                continue;
-            }
-            int toInter = pathfinder.shortestDistance(pallet.getPosition(), zone.getPosition(), blocked);
-            int interToExit = pathfinder.shortestDistance(zone.getPosition(), exit.getPosition(), blocked);
-            int score = toInter + interToExit + zone.getOccupancy() * 4;
-            if (score < bestScore) {
-                bestScore = score;
-                best = zone;
             }
         }
         return best;
